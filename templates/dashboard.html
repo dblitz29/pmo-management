@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Project Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { dark: { 700: '#252542', 800: '#1a1a2e', 900: '#0f0f1a' } } } }
+        }
+    </script>
+    <style>
+        .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); }
+        .dark .glass { background: rgba(30,30,50,0.7); }
+        .gradient-text { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); }
+        .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+        .progress-ring { transform: rotate(-90deg); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-dark-900 dark:to-dark-800 min-h-screen transition-colors duration-300">
+    <nav class="glass sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl">📊</div>
+                    <h1 class="text-xl font-bold gradient-text">Project Dashboard</h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleDark()" class="p-2 rounded-xl bg-slate-200 dark:bg-dark-700 hover:bg-slate-300 dark:hover:bg-dark-800 transition">
+                        <span class="hidden dark:block text-yellow-400">☀️</span>
+                        <span class="block dark:hidden text-slate-600">🌙</span>
+                    </button>
+                    <a href="/form" id="manageBtn" class="hidden bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition shadow-lg shadow-indigo-500/30">
+                        Manage Projects →
+                    </a>
+                    <a href="/users" id="usersBtn" class="hidden bg-slate-200 dark:bg-dark-700 text-slate-700 dark:text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-300 dark:hover:bg-dark-800 transition">
+                        👥 Users
+                    </a>
+                    <div class="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-700">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-sm font-bold" id="userAvatar">?</div>
+                        <div class="hidden sm:block">
+                            <p class="text-sm font-medium text-slate-800 dark:text-white" id="userName">-</p>
+                            <p class="text-xs text-slate-500" id="userRole">-</p>
+                        </div>
+                        <a href="/logout" class="ml-2 p-2 text-slate-400 hover:text-red-500 transition" title="Logout">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800 dark:text-white">Welcome back! 👋</h2>
+                <p class="text-slate-500 dark:text-slate-400 mt-1">Here's what's happening with your projects</p>
+            </div>
+            <div class="relative">
+                <input type="text" id="searchInput" placeholder="Search projects..." 
+                    class="w-full md:w-80 pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-700 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
+                    onkeyup="searchProjects()">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+            <div class="glass rounded-2xl p-5 border border-slate-200 dark:border-slate-700 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Total Projects</p>
+                        <p class="text-3xl font-bold text-slate-800 dark:text-white mt-1" id="total">-</p>
+                    </div>
+                    <div class="stat-icon bg-gradient-to-br from-blue-400 to-blue-600 text-white text-xl">📁</div>
+                </div>
+            </div>
+            <div class="glass rounded-2xl p-5 border border-slate-200 dark:border-slate-700 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Completed</p>
+                        <p class="text-3xl font-bold text-green-500 mt-1" id="completed">-</p>
+                    </div>
+                    <div class="stat-icon bg-gradient-to-br from-green-400 to-emerald-600 text-white text-xl">✓</div>
+                </div>
+            </div>
+            <div class="glass rounded-2xl p-5 border border-slate-200 dark:border-slate-700 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">In Progress</p>
+                        <p class="text-3xl font-bold text-amber-500 mt-1" id="in_progress">-</p>
+                    </div>
+                    <div class="stat-icon bg-gradient-to-br from-amber-400 to-orange-500 text-white text-xl">⏳</div>
+                </div>
+            </div>
+            <div class="glass rounded-2xl p-5 border border-slate-200 dark:border-slate-700 card-hover">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Cancelled</p>
+                        <p class="text-3xl font-bold text-red-500 mt-1" id="cancelled">-</p>
+                    </div>
+                    <div class="stat-icon bg-gradient-to-br from-red-400 to-rose-600 text-white text-xl">✕</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="grid lg:grid-cols-3 gap-6 mb-8">
+            <div class="glass rounded-2xl p-6 border border-slate-200 dark:border-slate-700 card-hover">
+                <h3 class="font-semibold text-slate-800 dark:text-white mb-4">Project Status</h3>
+                <div class="h-56"><canvas id="statusChart"></canvas></div>
+            </div>
+            <div class="glass rounded-2xl p-6 border border-slate-200 dark:border-slate-700 card-hover">
+                <h3 class="font-semibold text-slate-800 dark:text-white mb-4">Engineer Workload</h3>
+                <div class="h-56"><canvas id="engineerChart"></canvas></div>
+            </div>
+            <div class="glass rounded-2xl p-6 border border-slate-200 dark:border-slate-700 card-hover flex flex-col items-center justify-center">
+                <h3 class="font-semibold text-slate-800 dark:text-white mb-4">Avg Customer Score</h3>
+                <div class="relative">
+                    <svg class="w-40 h-40 progress-ring">
+                        <circle cx="80" cy="80" r="70" stroke-width="12" fill="none" class="stroke-slate-200 dark:stroke-slate-700"/>
+                        <circle id="scoreRing" cx="80" cy="80" r="70" stroke-width="12" fill="none" stroke-linecap="round" class="stroke-cyan-500" stroke-dasharray="440" stroke-dashoffset="440"/>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-4xl font-bold text-slate-800 dark:text-white" id="avg">-%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom -->
+        <div class="grid lg:grid-cols-2 gap-6">
+            <div class="glass rounded-2xl p-6 border border-slate-200 dark:border-slate-700 card-hover">
+                <h3 class="font-semibold text-slate-800 dark:text-white mb-4">Top Customers</h3>
+                <div class="h-64"><canvas id="customerChart"></canvas></div>
+            </div>
+            <div class="glass rounded-2xl border border-slate-200 dark:border-slate-700 card-hover overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="font-semibold text-slate-800 dark:text-white">Recent Projects</h3>
+                </div>
+                <div class="divide-y divide-slate-200 dark:divide-slate-700" id="recentList">
+                    <div class="px-6 py-8 text-center text-slate-400">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function toggleDark() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('dark', document.documentElement.classList.contains('dark'));
+            if (window._chartData) updateCharts();
+        }
+        if (localStorage.getItem('dark') === 'true') document.documentElement.classList.add('dark');
+
+        let statusChart, engineerChart, customerChart;
+        const isDark = () => document.documentElement.classList.contains('dark');
+
+        async function loadDashboard() {
+            try {
+                // Load user info
+                const me = await fetch('/api/me').then(r => r.json());
+                document.getElementById('userName').textContent = me.name;
+                document.getElementById('userRole').textContent = me.role;
+                document.getElementById('userAvatar').textContent = me.name.charAt(0);
+                if (me.role === 'admin') {
+                    document.getElementById('manageBtn').classList.remove('hidden');
+                    document.getElementById('usersBtn').classList.remove('hidden');
+                }
+
+                const [stats, projects, engineers, customers] = await Promise.all([
+                    fetch('/api/stats').then(r => r.json()),
+                    fetch('/api/projects').then(r => r.json()),
+                    fetch('/api/chart/engineers').then(r => r.json()),
+                    fetch('/api/chart/customers').then(r => r.json())
+                ]);
+
+                console.log('Stats:', stats);
+                console.log('Projects:', projects);
+
+                document.getElementById('total').textContent = stats.total;
+                document.getElementById('completed').textContent = stats.completed;
+                document.getElementById('in_progress').textContent = stats.in_progress;
+                document.getElementById('cancelled').textContent = stats.cancelled;
+                document.getElementById('avg').textContent = stats.avg + '%';
+
+                const ring = document.getElementById('scoreRing');
+                ring.style.strokeDashoffset = 440 - (440 * stats.avg / 100);
+
+                window._chartData = { stats, engineers, customers };
+                window._allProjects = projects;
+                updateCharts();
+                renderRecentList(projects);
+            } catch (err) {
+                console.error('Error loading dashboard:', err);
+                document.getElementById('recentList').innerHTML = '<div class="px-6 py-8 text-center text-red-400">Error loading data</div>';
+            }
+        }
+
+        function updateCharts() {
+            const { stats, engineers, customers } = window._chartData;
+            const textColor = isDark() ? '#94a3b8' : '#64748b';
+            const gridColor = isDark() ? 'rgba(148,163,184,0.1)' : 'rgba(0,0,0,0.05)';
+
+            if (statusChart) statusChart.destroy();
+            statusChart = new Chart(document.getElementById('statusChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Completed', 'In Progress', 'Cancelled'],
+                    datasets: [{ data: [stats.completed, stats.in_progress, stats.cancelled], backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'], borderWidth: 0 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { color: textColor } } } }
+            });
+
+            if (engineerChart) engineerChart.destroy();
+            engineerChart = new Chart(document.getElementById('engineerChart'), {
+                type: 'bar',
+                data: {
+                    labels: engineers.map(e => e.name),
+                    datasets: [{ data: engineers.map(e => e.count), backgroundColor: 'rgba(139,92,246,0.8)', borderRadius: 8 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: textColor }, grid: { display: false } }, y: { ticks: { color: textColor }, grid: { color: gridColor } } } }
+            });
+
+            if (customerChart) customerChart.destroy();
+            customerChart = new Chart(document.getElementById('customerChart'), {
+                type: 'bar',
+                data: {
+                    labels: customers.map(c => c.name.length > 12 ? c.name.substring(0,12)+'...' : c.name),
+                    datasets: [{ data: customers.map(c => c.count), backgroundColor: ['#8b5cf6','#a78bfa','#c4b5fd','#ddd6fe','#ede9fe'], borderRadius: 8 }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: textColor }, grid: { color: gridColor } }, y: { ticks: { color: textColor }, grid: { display: false } } } }
+            });
+        }
+
+        function renderRecentList(projects) {
+            const list = document.getElementById('recentList');
+            if (!projects.length) {
+                list.innerHTML = '<div class="px-6 py-8 text-center text-slate-400">No projects found</div>';
+                return;
+            }
+            list.innerHTML = projects.slice(0, 5).map(p => {
+                const sc = p.pmo === 'Completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                          p.pmo === 'Cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                          'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+                return `<div class="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold">${p.cust_name.charAt(0)}</div>
+                        <div>
+                            <p class="font-medium text-slate-800 dark:text-white">${p.project_name}</p>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">${p.cust_name}</p>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-full text-xs font-medium ${sc}">${p.pmo}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function searchProjects() {
+            const q = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = window._allProjects.filter(p => 
+                p.cust_name.toLowerCase().includes(q) || p.project_name.toLowerCase().includes(q) || 
+                (p.engineer1 || '').toLowerCase().includes(q) || p.pmo.toLowerCase().includes(q)
+            );
+            renderRecentList(filtered);
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>

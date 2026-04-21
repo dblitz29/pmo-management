@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Projects</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { dark: { 700: '#252542', 800: '#1a1a2e', 900: '#0f0f1a' } } } }
+        }
+    </script>
+    <style>
+        .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); }
+        .dark .glass { background: rgba(30,30,50,0.7); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-dark-900 dark:to-dark-800 min-h-screen transition-colors duration-300">
+    <nav class="glass sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-4">
+                    <a href="/" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition">← Dashboard</a>
+                    <h1 class="text-xl font-semibold text-slate-800 dark:text-white">Manage Projects</h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleDark()" class="p-2 rounded-xl bg-slate-200 dark:bg-dark-700 hover:bg-slate-300 dark:hover:bg-dark-800 transition">
+                        <span class="hidden dark:block text-yellow-400">☀️</span>
+                        <span class="block dark:hidden text-slate-600">🌙</span>
+                    </button>
+                    <button id="addBtn" onclick="openModal()" class="hidden bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition shadow-lg shadow-indigo-500/30">
+                        + Add Project
+                    </button>
+                    <a href="/users" id="usersBtn" class="hidden bg-slate-200 dark:bg-dark-700 text-slate-700 dark:text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-300 dark:hover:bg-dark-800 transition">
+                        👥 Users
+                    </a>
+                    <div class="flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-700">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-sm font-bold" id="userAvatar">?</div>
+                        <div class="hidden sm:block">
+                            <p class="text-sm font-medium text-slate-800 dark:text-white" id="userName">-</p>
+                            <p class="text-xs text-slate-500" id="userRole">-</p>
+                        </div>
+                        <a href="/logout" class="ml-2 p-2 text-slate-400 hover:text-red-500 transition" title="Logout">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="mb-6">
+            <input type="text" id="searchInput" placeholder="Search by customer, project, engineer, status..." 
+                class="w-full pl-4 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-700 text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
+                onkeyup="searchProjects()">
+        </div>
+
+        <div class="glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-dark-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">No</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Customer</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Project</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Total %</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Engineer</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div class="glass rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-700">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <h2 id="modalTitle" class="text-lg font-semibold text-slate-800 dark:text-white">Add Project</h2>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-2xl">&times;</button>
+            </div>
+            <form id="form" class="p-6">
+                <input type="hidden" id="editId">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Customer Name *</label>
+                        <input id="cust_name" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">PMO Status</label>
+                        <select id="pmo" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                            <option value="Completed">Completed</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">RM Ticket</label>
+                        <input id="rm_ticket" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Complete Date</label>
+                        <input type="date" id="complete_date" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Project Tier</label>
+                        <select id="project_tier" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                            <option>☆☆☆☆☆</option><option>☆☆☆☆</option><option>☆☆☆</option><option>☆☆</option><option>☆</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Project Name *</label>
+                        <input id="project_name" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Tech %</label>
+                        <input type="number" id="tech_point" min="0" max="100" value="0" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Cust %</label>
+                        <input type="number" id="cust_point" min="0" max="100" value="0" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Time %</label>
+                        <input type="number" id="time_point" min="0" max="100" value="0" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Total Cust %</label>
+                        <input type="number" id="total_cust" min="0" max="100" value="0" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Avg Bar %</label>
+                        <input type="number" id="avg_bar" min="0" max="100" value="0" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Engineer 1</label>
+                        <input id="engineer1" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Engineer 2</label>
+                        <input id="engineer2" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Link</label>
+                        <input type="url" id="link" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeModal()" class="px-5 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-dark-700 transition">Cancel</button>
+                    <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleDark() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('dark', document.documentElement.classList.contains('dark'));
+        }
+        if (localStorage.getItem('dark') === 'true') document.documentElement.classList.add('dark');
+
+        const fields = ['cust_name','pmo','rm_ticket','complete_date','project_tier','project_name','tech_point','cust_point','time_point','total_cust','avg_bar','engineer1','engineer2','link'];
+
+        let isAdmin = false;
+
+        async function load() {
+            // Load user info
+            const me = await fetch('/api/me').then(r => r.json());
+            document.getElementById('userName').textContent = me.name;
+            document.getElementById('userRole').textContent = me.role;
+            document.getElementById('userAvatar').textContent = me.name.charAt(0);
+            isAdmin = me.role === 'admin';
+            if (isAdmin) {
+                document.getElementById('addBtn').classList.remove('hidden');
+                document.getElementById('usersBtn').classList.remove('hidden');
+            }
+
+            const projects = await fetch('/api/projects').then(r => r.json());
+            window._allProjects = projects;
+            renderTable(projects);
+        }
+
+        function renderTable(projects) {
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = projects.map((p, i) => {
+                const sc = p.pmo === 'Completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 
+                          p.pmo === 'Cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 
+                          'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+                const eng = [p.engineer1, p.engineer2].filter(Boolean).join(', ') || '-';
+                const actions = isAdmin ? `
+                    <button onclick="edit(${p.id})" class="text-indigo-600 dark:text-indigo-400 hover:underline mr-3">Edit</button>
+                    <button onclick="del(${p.id})" class="text-red-600 dark:text-red-400 hover:underline">Delete</button>
+                ` : '<span class="text-slate-400 text-xs">View only</span>';
+                return `<tr class="hover:bg-slate-50 dark:hover:bg-dark-700 transition">
+                    <td class="px-4 py-3 text-slate-800 dark:text-white">${i+1}</td>
+                    <td class="px-4 py-3 text-slate-800 dark:text-white">${p.cust_name}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${sc}">${p.pmo}</span></td>
+                    <td class="px-4 py-3 text-slate-800 dark:text-white">${p.project_name}</td>
+                    <td class="px-4 py-3 text-slate-600 dark:text-slate-400">${p.total_cust}%</td>
+                    <td class="px-4 py-3 text-slate-600 dark:text-slate-400">${eng}</td>
+                    <td class="px-4 py-3">${actions}</td>
+                </tr>`;
+            }).join('') || '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">No projects found</td></tr>';
+        }
+
+        function searchProjects() {
+            const q = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = window._allProjects.filter(p => 
+                p.cust_name.toLowerCase().includes(q) || p.project_name.toLowerCase().includes(q) || 
+                (p.engineer1 || '').toLowerCase().includes(q) || p.pmo.toLowerCase().includes(q)
+            );
+            renderTable(filtered);
+        }
+
+        function openModal() {
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+            document.getElementById('modalTitle').textContent = 'Add Project';
+            document.getElementById('form').reset();
+            document.getElementById('editId').value = '';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+        }
+
+        async function edit(id) {
+            const p = window._allProjects.find(x => x.id === id);
+            document.getElementById('editId').value = id;
+            document.getElementById('modalTitle').textContent = 'Edit Project';
+            fields.forEach(f => document.getElementById(f).value = p[f] || '');
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+        }
+
+        async function del(id) {
+            if (confirm('Delete this project?')) {
+                await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                load();
+            }
+        }
+
+        document.getElementById('form').onsubmit = async (e) => {
+            e.preventDefault();
+            const data = {};
+            fields.forEach(f => data[f] = document.getElementById(f).value);
+            const id = document.getElementById('editId').value;
+            await fetch(id ? `/api/projects/${id}` : '/api/projects', {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            closeModal();
+            load();
+        };
+
+        document.getElementById('modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
+        load();
+    </script>
+</body>
+</html>

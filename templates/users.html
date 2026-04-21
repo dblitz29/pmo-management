@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { dark: { 700: '#252542', 800: '#1a1a2e', 900: '#0f0f1a' } } } }
+        }
+    </script>
+    <style>
+        .glass { background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); }
+        .dark .glass { background: rgba(30,30,50,0.7); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-dark-900 dark:to-dark-800 min-h-screen transition-colors duration-300">
+    <nav class="glass sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-4">
+                    <a href="/" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-white transition">← Dashboard</a>
+                    <h1 class="text-xl font-semibold text-slate-800 dark:text-white">User Management</h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleDark()" class="p-2 rounded-xl bg-slate-200 dark:bg-dark-700 hover:bg-slate-300 dark:hover:bg-dark-800 transition">
+                        <span class="hidden dark:block text-yellow-400">☀️</span>
+                        <span class="block dark:hidden text-slate-600">🌙</span>
+                    </button>
+                    <button onclick="openModal()" class="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition shadow-lg shadow-indigo-500/30">
+                        + Add User
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="glass rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-dark-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">User</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Username</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Role</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody" class="divide-y divide-slate-200 dark:divide-slate-700"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div class="glass rounded-2xl w-full max-w-md border border-slate-200 dark:border-slate-700">
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <h2 id="modalTitle" class="text-lg font-semibold text-slate-800 dark:text-white">Add User</h2>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-white text-2xl">&times;</button>
+            </div>
+            <form id="form" class="p-6">
+                <input type="hidden" id="editId">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Full Name *</label>
+                        <input id="name" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Username *</label>
+                        <input id="username" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Password <span id="pwdHint" class="text-xs">(leave blank to keep current)</span></label>
+                        <input type="password" id="password" class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 dark:text-slate-400 mb-1">Role *</label>
+                        <select id="role" required class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-dark-700 text-slate-800 dark:text-white focus:outline-none focus:border-indigo-500">
+                            <option value="viewer">Viewer</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="error" class="hidden mt-4 p-3 rounded-xl bg-red-100 text-red-700 text-sm"></div>
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeModal()" class="px-5 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-dark-700 transition">Cancel</button>
+                    <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleDark() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('dark', document.documentElement.classList.contains('dark'));
+        }
+        if (localStorage.getItem('dark') === 'true') document.documentElement.classList.add('dark');
+
+        async function load() {
+            const users = await fetch('/api/users').then(r => r.json());
+            window._allUsers = users;
+            renderTable(users);
+        }
+
+        function renderTable(users) {
+            const tbody = document.getElementById('tbody');
+            tbody.innerHTML = users.map(u => {
+                const roleClass = u.role === 'admin' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 
+                                  'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
+                return `<tr class="hover:bg-slate-50 dark:hover:bg-dark-700 transition">
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-sm font-bold">${u.name.charAt(0)}</div>
+                            <span class="text-slate-800 dark:text-white">${u.name}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-slate-600 dark:text-slate-400">${u.username}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${roleClass}">${u.role}</span></td>
+                    <td class="px-4 py-3">
+                        <button onclick="edit(${u.id})" class="text-indigo-600 dark:text-indigo-400 hover:underline mr-3">Edit</button>
+                        <button onclick="del(${u.id})" class="text-red-600 dark:text-red-400 hover:underline">Delete</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function openModal() {
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+            document.getElementById('modalTitle').textContent = 'Add User';
+            document.getElementById('form').reset();
+            document.getElementById('editId').value = '';
+            document.getElementById('password').required = true;
+            document.getElementById('pwdHint').classList.add('hidden');
+            document.getElementById('error').classList.add('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+            document.getElementById('modal').classList.remove('flex');
+        }
+
+        function edit(id) {
+            const u = window._allUsers.find(x => x.id === id);
+            document.getElementById('editId').value = id;
+            document.getElementById('modalTitle').textContent = 'Edit User';
+            document.getElementById('name').value = u.name;
+            document.getElementById('username').value = u.username;
+            document.getElementById('password').value = '';
+            document.getElementById('password').required = false;
+            document.getElementById('pwdHint').classList.remove('hidden');
+            document.getElementById('role').value = u.role;
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('modal').classList.add('flex');
+        }
+
+        async function del(id) {
+            if (confirm('Delete this user?')) {
+                const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) {
+                    alert(data.error);
+                } else {
+                    load();
+                }
+            }
+        }
+
+        document.getElementById('form').onsubmit = async (e) => {
+            e.preventDefault();
+            const error = document.getElementById('error');
+            error.classList.add('hidden');
+            
+            const id = document.getElementById('editId').value;
+            const data = {
+                name: document.getElementById('name').value,
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                role: document.getElementById('role').value
+            };
+            
+            const res = await fetch(id ? `/api/users/${id}` : '/api/users', {
+                method: id ? 'PUT' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await res.json();
+            if (!res.ok) {
+                error.textContent = result.error;
+                error.classList.remove('hidden');
+            } else {
+                closeModal();
+                load();
+            }
+        };
+
+        document.getElementById('modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
+        load();
+    </script>
+</body>
+</html>
