@@ -1,6 +1,9 @@
 # Database
 *.db
 
+# Data file (comment this if you want to include initial data)
+# data.json
+
 # Python
 __pycache__/
 *.py[cod]

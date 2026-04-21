@@ -1,64 +1,35 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from functools import wraps
-import sqlite3
 import hashlib
+import json
 import os
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-this'
-DB = 'projects.db'
+
+DATA_FILE = 'data.json'
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-def get_db():
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    return conn
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'r') as f:
+            return json.load(f)
+    # Default data
+    return {
+        'users': [
+            {'id': 1, 'username': 'admin', 'password': hash_password('admin123'), 'name': 'Administrator', 'role': 'admin'}
+        ],
+        'projects': []
+    }
 
-def init_db():
-    # Only create if not exists
-    if os.path.exists(DB):
-        return
-    
-    conn = get_db()
-    
-    # Users table
-    conn.execute('''CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'viewer',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    
-    # Default admin user only
-    conn.execute('INSERT INTO users (username, password, name, role) VALUES (?, ?, ?, ?)',
-        ('admin', hash_password('admin123'), 'Administrator', 'admin'))
-    
-    # Projects table (empty)
-    conn.execute('''CREATE TABLE projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cust_name TEXT NOT NULL,
-        pmo TEXT,
-        rm_ticket TEXT,
-        complete_date TEXT,
-        project_tier TEXT,
-        project_name TEXT NOT NULL,
-        tech_point INTEGER DEFAULT 0,
-        cust_point INTEGER DEFAULT 0,
-        time_point INTEGER DEFAULT 0,
-        total_cust INTEGER DEFAULT 0,
-        avg_bar INTEGER DEFAULT 0,
-        engineer1 TEXT,
-        engineer2 TEXT,
-        link TEXT
-    )''')
-    
-    conn.commit()
-    conn.close()
-    print("Database initialized (empty projects, default admin user)")
+def save_data(data):
+    with open(DATA_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def get_next_id(items):
+    return max([i['id'] for i in items], default=0) + 1
 
 # Auth decorators
 def login_required(f):
@@ -89,9 +60,8 @@ def login():
         username = data.get('username')
         password = data.get('password')
         
-        conn = get_db()
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
-        conn.close()
+        db = load_data()
+        user = next((u for u in db['users'] if u['username'] == username), None)
         
         if user and user['password'] == hash_password(password):
             session['user'] = username
@@ -133,151 +103,178 @@ def users_page():
         return redirect(url_for('index'))
     return render_template('users.html')
 
-# User management API (admin only)
+# User API
 @app.route('/api/users', methods=['GET'])
 @admin_required
 def get_users():
-    conn = get_db()
-    rows = conn.execute('SELECT id, username, name, role, created_at FROM users ORDER BY id').fetchall()
-    conn.close()
-    return jsonify([dict(r) for r in rows])
+    db = load_data()
+    users = [{'id': u['id'], 'username': u['username'], 'name': u['name'], 'role': u['role']} for u in db['users']]
+    return jsonify(users)
 
 @app.route('/api/users', methods=['POST'])
 @admin_required
 def add_user():
     d = request.json
-    conn = get_db()
-    try:
-        conn.execute('INSERT INTO users (username, password, name, role) VALUES (?, ?, ?, ?)',
-            (d['username'], hash_password(d['password']), d['name'], d['role']))
-        conn.commit()
-        conn.close()
-        return jsonify({'status': 'ok'})
-    except sqlite3.IntegrityError:
-        conn.close()
+    db = load_data()
+    
+    if any(u['username'] == d['username'] for u in db['users']):
         return jsonify({'error': 'Username already exists'}), 400
+    
+    new_user = {
+        'id': get_next_id(db['users']),
+        'username': d['username'],
+        'password': hash_password(d['password']),
+        'name': d['name'],
+        'role': d['role']
+    }
+    db['users'].append(new_user)
+    save_data(db)
+    return jsonify({'status': 'ok'})
 
 @app.route('/api/users/<int:id>', methods=['PUT'])
 @admin_required
 def update_user(id):
     d = request.json
-    conn = get_db()
+    db = load_data()
+    user = next((u for u in db['users'] if u['id'] == id), None)
     
-    # Check if trying to demote last admin
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
     if d['role'] != 'admin':
-        admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin' AND id != ?", (id,)).fetchone()[0]
+        admin_count = sum(1 for u in db['users'] if u['role'] == 'admin' and u['id'] != id)
         if admin_count == 0:
-            conn.close()
             return jsonify({'error': 'Cannot demote the last admin'}), 400
     
+    user['username'] = d['username']
+    user['name'] = d['name']
+    user['role'] = d['role']
     if d.get('password'):
-        conn.execute('UPDATE users SET username=?, password=?, name=?, role=? WHERE id=?',
-            (d['username'], hash_password(d['password']), d['name'], d['role'], id))
-    else:
-        conn.execute('UPDATE users SET username=?, name=?, role=? WHERE id=?',
-            (d['username'], d['name'], d['role'], id))
-    conn.commit()
-    conn.close()
+        user['password'] = hash_password(d['password'])
+    
+    save_data(db)
     return jsonify({'status': 'ok'})
 
 @app.route('/api/users/<int:id>', methods=['DELETE'])
 @admin_required
 def delete_user(id):
-    conn = get_db()
+    db = load_data()
     
-    # Prevent deleting yourself
     if id == session.get('user_id'):
-        conn.close()
         return jsonify({'error': 'Cannot delete yourself'}), 400
     
-    # Prevent deleting last admin
-    user = conn.execute('SELECT role FROM users WHERE id=?', (id,)).fetchone()
+    user = next((u for u in db['users'] if u['id'] == id), None)
     if user and user['role'] == 'admin':
-        admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0]
+        admin_count = sum(1 for u in db['users'] if u['role'] == 'admin')
         if admin_count <= 1:
-            conn.close()
             return jsonify({'error': 'Cannot delete the last admin'}), 400
     
-    conn.execute('DELETE FROM users WHERE id=?', (id,))
-    conn.commit()
-    conn.close()
+    db['users'] = [u for u in db['users'] if u['id'] != id]
+    save_data(db)
     return jsonify({'status': 'ok'})
 
-# API routes - Read (all users)
+# Project API
 @app.route('/api/projects', methods=['GET'])
 @login_required
 def get_projects():
-    conn = get_db()
-    rows = conn.execute('SELECT * FROM projects ORDER BY id').fetchall()
-    conn.close()
-    return jsonify([dict(r) for r in rows])
+    db = load_data()
+    return jsonify(db['projects'])
 
-@app.route('/api/stats')
-@login_required
-def get_stats():
-    conn = get_db()
-    total = conn.execute('SELECT COUNT(*) FROM projects').fetchone()[0]
-    completed = conn.execute("SELECT COUNT(*) FROM projects WHERE pmo='Completed'").fetchone()[0]
-    cancelled = conn.execute("SELECT COUNT(*) FROM projects WHERE pmo='Cancelled'").fetchone()[0]
-    in_progress = conn.execute("SELECT COUNT(*) FROM projects WHERE pmo='In Progress'").fetchone()[0]
-    avg = conn.execute('SELECT AVG(total_cust) FROM projects').fetchone()[0] or 0
-    conn.close()
-    return jsonify({'total': total, 'completed': completed, 'cancelled': cancelled, 'in_progress': in_progress, 'avg': round(avg)})
-
-@app.route('/api/chart/engineers')
-@login_required
-def chart_engineers():
-    conn = get_db()
-    rows = conn.execute("SELECT engineer1, COUNT(*) as count FROM projects WHERE engineer1 != '' GROUP BY engineer1").fetchall()
-    conn.close()
-    return jsonify([{'name': r['engineer1'], 'count': r['count']} for r in rows])
-
-@app.route('/api/chart/customers')
-@login_required
-def chart_customers():
-    conn = get_db()
-    rows = conn.execute("SELECT cust_name, COUNT(*) as count FROM projects GROUP BY cust_name ORDER BY count DESC LIMIT 5").fetchall()
-    conn.close()
-    return jsonify([{'name': r['cust_name'], 'count': r['count']} for r in rows])
-
-# API routes - Write (admin only)
 @app.route('/api/projects', methods=['POST'])
 @admin_required
 def add_project():
     d = request.json
-    conn = get_db()
-    conn.execute('''INSERT INTO projects (cust_name, pmo, rm_ticket, complete_date, project_tier, project_name, tech_point, cust_point, time_point, total_cust, avg_bar, engineer1, engineer2, link) 
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-        (d['cust_name'], d['pmo'], d['rm_ticket'], d['complete_date'], d['project_tier'], d['project_name'], 
-         int(d['tech_point'] or 0), int(d['cust_point'] or 0), int(d['time_point'] or 0), int(d['total_cust'] or 0), int(d['avg_bar'] or 0), 
-         d['engineer1'], d['engineer2'], d['link']))
-    conn.commit()
-    conn.close()
+    db = load_data()
+    
+    new_project = {
+        'id': get_next_id(db['projects']),
+        'cust_name': d['cust_name'],
+        'pmo': d['pmo'],
+        'rm_ticket': d.get('rm_ticket', ''),
+        'complete_date': d.get('complete_date', ''),
+        'project_tier': d.get('project_tier', '☆☆☆☆☆'),
+        'project_name': d['project_name'],
+        'tech_point': int(d.get('tech_point') or 0),
+        'cust_point': int(d.get('cust_point') or 0),
+        'time_point': int(d.get('time_point') or 0),
+        'total_cust': int(d.get('total_cust') or 0),
+        'avg_bar': int(d.get('avg_bar') or 0),
+        'engineer1': d.get('engineer1', ''),
+        'engineer2': d.get('engineer2', ''),
+        'link': d.get('link', '')
+    }
+    db['projects'].append(new_project)
+    save_data(db)
     return jsonify({'status': 'ok'})
 
 @app.route('/api/projects/<int:id>', methods=['PUT'])
 @admin_required
 def update_project(id):
     d = request.json
-    conn = get_db()
-    conn.execute('''UPDATE projects SET cust_name=?, pmo=?, rm_ticket=?, complete_date=?, project_tier=?, project_name=?, 
-        tech_point=?, cust_point=?, time_point=?, total_cust=?, avg_bar=?, engineer1=?, engineer2=?, link=? WHERE id=?''',
-        (d['cust_name'], d['pmo'], d['rm_ticket'], d['complete_date'], d['project_tier'], d['project_name'],
-         int(d['tech_point'] or 0), int(d['cust_point'] or 0), int(d['time_point'] or 0), int(d['total_cust'] or 0), int(d['avg_bar'] or 0),
-         d['engineer1'], d['engineer2'], d['link'], id))
-    conn.commit()
-    conn.close()
+    db = load_data()
+    project = next((p for p in db['projects'] if p['id'] == id), None)
+    
+    if not project:
+        return jsonify({'error': 'Project not found'}), 404
+    
+    project.update({
+        'cust_name': d['cust_name'],
+        'pmo': d['pmo'],
+        'rm_ticket': d.get('rm_ticket', ''),
+        'complete_date': d.get('complete_date', ''),
+        'project_tier': d.get('project_tier', '☆☆☆☆☆'),
+        'project_name': d['project_name'],
+        'tech_point': int(d.get('tech_point') or 0),
+        'cust_point': int(d.get('cust_point') or 0),
+        'time_point': int(d.get('time_point') or 0),
+        'total_cust': int(d.get('total_cust') or 0),
+        'avg_bar': int(d.get('avg_bar') or 0),
+        'engineer1': d.get('engineer1', ''),
+        'engineer2': d.get('engineer2', ''),
+        'link': d.get('link', '')
+    })
+    save_data(db)
     return jsonify({'status': 'ok'})
 
 @app.route('/api/projects/<int:id>', methods=['DELETE'])
 @admin_required
 def delete_project(id):
-    conn = get_db()
-    conn.execute('DELETE FROM projects WHERE id=?', (id,))
-    conn.commit()
-    conn.close()
+    db = load_data()
+    db['projects'] = [p for p in db['projects'] if p['id'] != id]
+    save_data(db)
     return jsonify({'status': 'ok'})
 
+@app.route('/api/stats')
+@login_required
+def get_stats():
+    db = load_data()
+    projects = db['projects']
+    total = len(projects)
+    completed = sum(1 for p in projects if p['pmo'] == 'Completed')
+    cancelled = sum(1 for p in projects if p['pmo'] == 'Cancelled')
+    in_progress = sum(1 for p in projects if p['pmo'] == 'In Progress')
+    avg = sum(p['total_cust'] for p in projects) / total if total > 0 else 0
+    return jsonify({'total': total, 'completed': completed, 'cancelled': cancelled, 'in_progress': in_progress, 'avg': round(avg)})
+
+@app.route('/api/chart/engineers')
+@login_required
+def chart_engineers():
+    db = load_data()
+    engineers = {}
+    for p in db['projects']:
+        if p.get('engineer1'):
+            engineers[p['engineer1']] = engineers.get(p['engineer1'], 0) + 1
+    return jsonify([{'name': k, 'count': v} for k, v in engineers.items()])
+
+@app.route('/api/chart/customers')
+@login_required
+def chart_customers():
+    db = load_data()
+    customers = {}
+    for p in db['projects']:
+        customers[p['cust_name']] = customers.get(p['cust_name'], 0) + 1
+    sorted_customers = sorted(customers.items(), key=lambda x: x[1], reverse=True)[:5]
+    return jsonify([{'name': k, 'count': v} for k, v in sorted_customers])
+
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True, port=5000)
